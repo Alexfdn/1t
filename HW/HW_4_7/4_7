@@ -1,0 +1,55 @@
+import pandas as pd
+from pyspark.sql import SparkSession
+from pyspark.sql import functions as f
+
+excel_file = "/home/jovyan/work/online_retail.xlsx"
+df = pd.read_excel(excel_file)
+csv_file = "/home/jovyan/work/online_retail.csv"
+
+df.to_csv(csv_file, index=False)
+
+spark = SparkSession.builder \
+      .master("local[1]") \
+      .appName("SparkFirst") \
+      .getOrCreate() 
+df = spark.read.csv(csv_file, header=True, inferSchema=True)
+
+# общее число строк
+df.count()
+# Количество уникальных клиентов
+df_customer = df.groupBy('CustomerID').count().count()
+
+# В какой стране совершается большинство покупок
+df_country = df.groupBy('Country').count()
+df_country.select('Country').filter(col('count')== df_country.agg(f.max('count')).collect()[0][0]).show()
+# Даты самой ранней и самой последней покупки на платформе
+df.agg(f.min('InvoiceDate').alias('min_data'), f.max('InvoiceDate').alias('max_data')).show()
+df.createOrReplaceTempView("retail")
+RFM = spark.sql("SELECT *, CONCAT_WS('', Frequency_value, Recency_value, Monetary_value) AS sum_value \
+        FROM(SELECT CustomerID, Frequency, Recency, Monetary, \
+            CASE  \
+                WHEN Frequency < 100 THEN 'C' \
+                WHEN Frequency >= 100 AND Frequency < 200 THEN 'B' \
+                WHEN  Frequency >= 200 THEN 'A' \
+            END AS Frequency_value, \
+            CASE  \
+                WHEN Recency < 4300 THEN 'A' \
+                WHEN Recency >= 4300 AND Recency < 4400 THEN 'B' \
+                WHEN Recency >= 4400 THEN 'C' \
+            END AS Recency_value, \
+            CASE  \
+                WHEN Monetary < 100 THEN 'C' \
+                WHEN Monetary >= 100 AND Monetary < 300 THEN 'B' \
+                WHEN Monetary >= 300 THEN 'A' \
+            END AS Monetary_value \
+            FROM( SELECT datediff(current_date(),MAX(InvoiceDate)) AS Recency, \
+                    COUNT(InvoiceNo) AS Frequency, SUM(UnitPrice) AS Monetary, CustomerID  \
+                FROM retail GROUP BY CustomerID))")
+
+RFM.createOrReplaceTempView('rfm')
+load_customer = spark.sql("SELECT CustomerID FROM rfm WHERE sum_value = 'AAA'")
+
+load_customer.write \
+    .format("csv") \
+    .option("header", "true") \
+    .save("/home/jovyan/work/customer_id_1.csv")
