@@ -1,0 +1,33 @@
+#перейти в папку с txt-файлами
+#объединить txt-файлы
+copy *.txt voinaAll.txt
+#Создаём новый католог
+hadoop fs -mkdir /user/test/voina
+#Загружаем файл на hdfs
+hadoop fs -put /voinaAll.txt /user/test/voina/voinaAll.txt
+#Выводим содержание папки
+hadoop fs -ls /user/test/voina
+
+#Found 1 items
+#-rw-r--r--   2 root test    3048009 2023-11-28 15:10 /user/test/voina/voinaAll.txt
+
+#Меняем права
+hadoop fs -chmod +rx /user/test/voina/voinaAll.txt
+#Проверка
+hadoop fs -ls /user/test/voina
+
+#Found 1 items
+#-rwxr-xr-x   2 root test    3048009 2023-11-28 15:10 /user/test/voina/voinaAll.txt
+
+#Сколько места занимает файл
+hadoop fs -du -s -h /user/test/voina/voinaAll.txt
+2.9 M  /user/test/voina/voinaAll.txt
+
+#Изменяем фактор репликации на 2
+hadoop fs -setrep 2 /user/test/voina/voinaAll.txt
+#Изменений не произошло
+hadoop fs -du -s -h /user/test/voina/voinaAll.txt
+2.9 M  /user/test/voina/voinaAll.txt
+#Количество строк
+hadoop fs -cat /user/test/voina/voinaAll.txt | wc -l
+10272
